@@ -916,7 +916,7 @@
         const joiningDateOptions = document.querySelectorAll('.joining-option');
         const successModal = document.getElementById('successModal');
         const refIdDisplay = document.getElementById('refIdDisplay');
-        const BASE_URL = 'http://localhost:3023';
+        const BASE_URL = 'http://54.166.206.245:3221';
 
         // Initialize form
         document.addEventListener('DOMContentLoaded', function() {
@@ -986,6 +986,11 @@
                     const value = this.querySelector('input').value;
                     const customContainer = document.getElementById('customJoiningDateContainer');
                     customContainer.style.display = value === 'custom' ? 'block' : 'none';
+                    
+                    // Clear custom date if another option is selected
+                    if (value !== 'custom') {
+                        document.getElementById('customJoiningDate').value = '';
+                    }
                 });
             });
         }
@@ -1008,12 +1013,10 @@
             });
 
             document.getElementById('offerLetterForm').addEventListener('submit', function(e) {
-                console.log('Form submit event triggered');
                 e.preventDefault();
                 if (validateCurrentSection() && validateAllSections()) {
                     submitForm();
                 } else {
-                    console.log('Validation failed, scrolling to first error');
                     const firstError = document.querySelector('.has-error');
                     if (firstError) {
                         firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1026,6 +1029,7 @@
             let isValid = true;
             const currentSectionElement = sections[currentSection];
             const inputs = currentSectionElement.querySelectorAll('input[required], select[required], textarea[required]');
+            
             inputs.forEach(input => {
                 if (!validateInput(input)) {
                     isValid = false;
@@ -1301,6 +1305,7 @@
         }
 
         function validateDOB(dob) {
+            if (!dob) return false;
             const birthDate = new Date(dob);
             const today = new Date();
             let age = today.getFullYear() - birthDate.getFullYear();
@@ -1312,6 +1317,7 @@
         }
 
         function validateJoiningDate(date) {
+            if (!date) return false;
             const joiningDate = new Date(date);
             const today = new Date();
             const fourMonthsLater = new Date();
@@ -1320,6 +1326,7 @@
         }
 
         function validateInterviewDate(date) {
+            if (!date) return false;
             const interviewDate = new Date(date);
             const today = new Date();
             const sixMonthsEarlier = new Date();
@@ -1329,30 +1336,27 @@
 
         function setDateConstraints() {
             const today = new Date();
-            const dobInput = document.getElementById('dob');
-            const customJoiningDateInput = document.getElementById('customJoiningDate');
-            const interviewDateInput = document.getElementById('interviewDate');
+            const formatDate = (date) => date.toISOString().split('T')[0];
+
+            // DOB: 20-60 years old
             const minDOB = new Date();
             minDOB.setFullYear(today.getFullYear() - 60);
             const maxDOB = new Date();
             maxDOB.setFullYear(today.getFullYear() - 20);
-            if (dobInput) {
-                dobInput.setAttribute('min', minDOB.toISOString().split('T')[0]);
-                dobInput.setAttribute('max', maxDOB.toISOString().split('T')[0]);
-            }
-            if (customJoiningDateInput) {
-                const maxJoiningDate = new Date();
-                maxJoiningDate.setMonth(today.getMonth() + 4);
-                customJoiningDateInput.setAttribute('min', today.toISOString().split('T')[0]);
-                customJoiningDateInput.setAttribute('max', maxJoiningDate.toISOString().split('T')[0]);
-            }
-            if (interviewDateInput) {
-                const minInterviewDate = new Date();
-                minInterviewDate.setMonth(today.getMonth() - 6);
-                const maxInterviewDate = today;
-                interviewDateInput.setAttribute('min', minInterviewDate.toISOString().split('T')[0]);
-                interviewDateInput.setAttribute('max', maxInterviewDate.toISOString().split('T')[0]);
-            }
+            document.getElementById('dob').setAttribute('max', formatDate(maxDOB));
+            document.getElementById('dob').setAttribute('min', formatDate(minDOB));
+
+            // Interview date: Up to 6 months ago
+            const minInterviewDate = new Date();
+            minInterviewDate.setMonth(today.getMonth() - 6);
+            document.getElementById('interviewDate').setAttribute('max', formatDate(today));
+            document.getElementById('interviewDate').setAttribute('min', formatDate(minInterviewDate));
+
+            // Joining date: Up to 4 months in future
+            const maxJoiningDate = new Date();
+            maxJoiningDate.setMonth(today.getMonth() + 4);
+            document.getElementById('customJoiningDate').setAttribute('min', formatDate(today));
+            document.getElementById('customJoiningDate').setAttribute('max', formatDate(maxJoiningDate));
         }
 
         function toggleExperienceFields() {
@@ -1368,131 +1372,86 @@
                 document.getElementById('yearsOfExperience').required = false;
                 document.getElementById('previousCompany').required = false;
                 document.getElementById('previousJobRole').required = false;
+                
+                // Clear experience fields when switching to fresher
+                document.getElementById('yearsOfExperience').value = '';
+                document.getElementById('previousCompany').value = '';
+                document.getElementById('previousJobRole').value = '';
             }
         }
 
-     async function submitForm() {
-    if (isSubmitting) {
-        console.log('Submission already in progress, ignoring duplicate request');
-        return;
-    }
+        async function submitForm() {
+            if (isSubmitting) return;
+            isSubmitting = true;
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
 
-    console.log('Submitting application...');
-    isSubmitting = true;
-    const submitBtn = document.getElementById('submitBtn');
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.classList.add('submitting'); // Add loading state
-    }
+            const form = document.getElementById('offerLetterForm');
+            const formData = new FormData(form);
 
-    const form = document.getElementById('offerLetterForm');
-    const formData = new FormData(form);
+            // Calculate joining date based on selection
+            const joiningOption = document.querySelector('input[name="joining_option"]:checked')?.value;
+            if (joiningOption) {
+                let joiningDate = new Date();
+                if (joiningOption === 'custom') {
+                    joiningDate = new Date(document.getElementById('customJoiningDate').value);
+                } else if (joiningOption !== 'immediate') {
+                    joiningDate.setDate(joiningDate.getDate() + parseInt(joiningOption));
+                }
+                formData.set('joining_date', joiningDate.toISOString().split('T')[0]);
+            }
 
-    const joiningOption = document.querySelector('input[name="joining_option"]:checked')?.value || '';
-    let joiningDate = null;
+            try {
+                const response = await fetch(`${BASE_URL}/api/applications`, {
+                    method: 'POST',
+                    body: formData
+                });
 
-    if (joiningOption === 'custom') {
-        joiningDate = document.getElementById('customJoiningDate').value;
-    } else if (joiningOption === 'immediate') {
-        joiningDate = new Date().toISOString().split('T')[0];
-    } else if (['30', '45', '60', '90'].includes(joiningOption)) {
-        const days = parseInt(joiningOption);
-        const date = new Date();
-        date.setDate(date.getDate() + days);
-        joiningDate = date.toISOString().split('T')[0];
-    }
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Failed to submit application');
+                }
 
-    if (joiningDate) {
-        formData.set('joining_date', joiningDate);
-    }
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.message || 'Application submission failed');
+                }
 
-    try {
-        console.log('Sending fetch request to server...');
-        const response = await fetch(`${BASE_URL}/api/applications`, {
-            method: 'POST',
-            body: formData
-        });
-
-        console.log('Fetch response received:', {
-            status: response.status,
-            statusText: response.statusText,
-            headers: Object.fromEntries(response.headers.entries())
-        });
-
-        const text = await response.text();
-        if (!text) {
-            throw new Error('Empty response from server');
+                showSuccessModal(result.reference_id);
+            } catch (error) {
+                console.error('Submission error:', error);
+                
+                let errorMessage = 'Failed to submit application';
+                if (error.message.includes('Email already exists')) {
+                    errorMessage = 'This email is already registered';
+                    document.getElementById('email').classList.add('has-error');
+                    document.getElementById('emailError').textContent = errorMessage;
+                    document.getElementById('emailError').style.display = 'block';
+                    currentSection = 1;
+                    showSection(currentSection);
+                    updateProgressSteps();
+                    updateProgressBar();
+                } else if (error.message.includes('Mobile number already exists')) {
+                    errorMessage = 'This mobile number is already registered';
+                    document.getElementById('mobileNumber').classList.add('has-error');
+                    document.getElementById('mobileNumberError').textContent = errorMessage;
+                    document.getElementById('mobileNumberError').style.display = 'block';
+                    currentSection = 1;
+                    showSection(currentSection);
+                    updateProgressSteps();
+                    updateProgressBar();
+                } else {
+                    alert(`Error: ${error.message || 'Failed to submit application'}`);
+                }
+            } finally {
+                isSubmitting = false;
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
+            }
         }
 
-        let result;
-        try {
-            result = JSON.parse(text);
-        } catch (jsonError) {
-            console.error('Failed to parse server response as JSON:', text);
-            throw new Error(`Invalid JSON response: ${text}`);
-        }
-
-        console.log('Parsed server response:', result);
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${result.message || 'Failed to submit application'}`);
-        }
-
-        if (!result.success || !result.referenceId) {
-            throw new Error(result.message || 'Server response missing success or referenceId');
-        }
-
-        console.log('Employee side referenceId:', result.referenceId);
-        showSuccessModal(result.referenceId);
-        console.log('Application submitted successfully:', result.referenceId);
-
-    } catch (error) {
-        console.error('Full error object:', {
-            message: error.message,
-            stack: error.stack,
-            url: `${BASE_URL}/api/applications`
-        });
-
-        let errorMessage = '';
-        if (error.message.includes('Failed to fetch')) {
-            errorMessage = 'Unable to connect to the server. Please ensure the server is running at http://localhost:3023.';
-        } else if (error.message.includes('Empty response')) {
-            errorMessage = 'Server returned an empty response. Please check server logs for details.';
-        } else if (error.message.includes('Invalid JSON')) {
-            errorMessage = 'Server returned an invalid response. Please check server logs for details.';
-        } else if (error.message.includes('Email already exists')) {
-            errorMessage = 'This email is already registered.';
-            document.getElementById('email').classList.add('has-error');
-            document.getElementById('emailError').textContent = errorMessage;
-            document.getElementById('emailError').style.display = 'block';
-            currentSection = 1;
-            showSection(currentSection);
-            updateProgressSteps();
-            updateProgressBar();
-        } else if (error.message.includes('Mobile number already exists')) {
-            errorMessage = 'This mobile number is already registered.';
-            document.getElementById('mobileNumber').classList.add('has-error');
-            document.getElementById('mobileNumberError').textContent = errorMessage;
-            document.getElementById('mobileNumberError').style.display = 'block';
-            currentSection = 1;
-            showSection(currentSection);
-            updateProgressSteps();
-            updateProgressBar();
-        } else if (error.message.includes('HTTP')) {
-            errorMessage = `Server error: ${error.message}. Check server logs for details.`;
-        } else {
-            errorMessage = `Submission failed: ${error.message}`;
-        }
-
-        alert(`Error: ${errorMessage}`);
-    } finally {
-        isSubmitting = false;
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.classList.remove('submitting'); // Remove loading state
-        }
-    }
-}
         function showSuccessModal(refId) {
             refIdDisplay.textContent = refId;
             successModal.style.display = 'flex';
@@ -1507,6 +1466,10 @@
             updateProgressBar();
             document.querySelectorAll('.joining-option').forEach(opt => opt.classList.remove('selected'));
             document.getElementById('customJoiningDateContainer').style.display = 'none';
+            
+            // Reset experience fields
+            document.getElementById('experienceStatus').value = '';
+            toggleExperienceFields();
         }
     </script>
 </body>
