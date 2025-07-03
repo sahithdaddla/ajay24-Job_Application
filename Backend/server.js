@@ -36,10 +36,10 @@ app.use(morgan('dev'));
 
 // CORS configuration
 const allowedOrigins = [
-  'http://13.60.181.210:8275',
-  'http://13.60.181.210:8276',
-  'http://13.60.181.210:8277',
-  'http://13.60.181.210:3079',
+  'http://16.171.144.225:8275',
+  'http://16.171.144.225:8276',
+  'http://16.171.144.225:8277',
+  'http://16.171.144.225:3079',
   'http://localhost:8275',
   'http://localhost:8276',
   'http://localhost:8277',
